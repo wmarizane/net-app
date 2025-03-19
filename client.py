@@ -1,8 +1,22 @@
 import socket
 import threading
+import textwrap
 
 HOST = '127.0.0.1'
 PORT = 65432
+BUBBLE_WIDTH = 40
+
+def speech_bubble(message, sender):
+    lines = textwrap.wrap(message, width=BUBBLE_WIDTH)
+    max_length = max(len(line) for line in lines)
+    
+    top = " " + "_" * (max_length + 2)
+    # middle = "\n".join([f"/ {line.ljust(max_length)} \"] + [f"| {line.ljust(max_length)} |" for line in wrapped_lines[1:]])
+    middle = "/ " + lines[0].ljust(max_length) + " \\"  # First line with slashes
+    middle += "\n" + "\n".join([f"| {line.ljust(max_length)} |" for line in lines[1:]]) 
+    bottom = f"\\_{'_' * max_length}_/\n |/\n {sender}"
+    
+    return f"{top}\n{middle}\n{bottom}"
 
 def receive_messages(sock):
     while True:
@@ -10,7 +24,8 @@ def receive_messages(sock):
             msg = sock.recv(1024).decode()
             if not msg:
                 break
-            print(msg)
+            sender, message = msg.split(":", 1)
+            print(speech_bubble(message.strip(), sender))
         except:
             break
 
