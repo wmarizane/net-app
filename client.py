@@ -1,7 +1,9 @@
+# client.py
 import socket
 import json
 import threading
 import textwrap
+import os  # For clearing the terminal
 
 # Configuration
 IP = "127.0.0.1"
@@ -9,10 +11,15 @@ PORT = 65432
 HEADER_LENGTH = 2048
 BUBBLE_WIDTH = 40  # Maximum characters per line in the bubble
 
+# Global variable to hold our user id after login.
+my_user_id = None
+
 def speech_bubble(message, sender, msg_id, timestamp):
     """
-    Creates a speech bubble string that contains the message text, the sender,
-    and at the bottom, the message ID and timestamp (in a light gray color).
+    Creates a speech bubble string that contains:
+      - The message text,
+      - The sender's name,
+      - And at the bottom, the message ID and timestamp (in light gray).
     """
     # Wrap the message text.
     lines = textwrap.wrap(message, width=BUBBLE_WIDTH)
@@ -28,12 +35,32 @@ def speech_bubble(message, sender, msg_id, timestamp):
     if len(lines) > 1:
         middle += "\n" + "\n".join([f"| {line.ljust(max_length)} |" for line in lines[1:]])
     
-    # Bottom block: sender and then the id & timestamp in light gray.
+    # Bottom block: sender and then the ID and timestamp in light gray.
     bottom = f"\\_{'_' * max_length}_/\n |/\n {sender}"
-    # ANSI escape code \033[90m for light gray, then \033[0m to reset.
     bottom += f"\n\033[90mID: {msg_id} | {timestamp}\033[0m"
     
     return f"{top}\n{middle}\n{bottom}"
+
+def clear_screen():
+    # Clear the terminal screen.
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def render_messages(messages):
+    """
+    Clears the screen and reprints all messages using the speech bubble format.
+    """
+    clear_screen()
+    print("=== Chat History ===\n")
+    for msg in messages:
+        bubble = speech_bubble(
+            msg.get('content', ''),
+            msg.get('sender', 'Unknown'),
+            msg.get('id', 'N/A'),
+            msg.get('time', 'N/A')
+        )
+        print(bubble + "\n")
+    print("=== End of Chat History ===\n")
+    print("Type your message or command:")
 
 def receive_messages(client_socket):
     while True:
@@ -42,24 +69,22 @@ def receive_messages(client_socket):
             if not raw_msg:
                 print("Connection closed by the server.")
                 break
-            message = json.loads(raw_msg.decode('utf-8'))
-            # Check if it's an error message from server.
-            if "error" in message:
-                print("Error:", message["error"])
+            data = json.loads(raw_msg.decode('utf-8'))
+            # If a refresh event is received, re-render the entire chat history.
+            if data.get("action") == "REFRESH":
+                messages = data.get("messages", [])
+                render_messages(messages)
+            elif "error" in data:
+                print("Error:", data["error"])
             else:
-                # Format the message in a bubble.
-                bubble = speech_bubble(
-                    message.get('content', ''),
-                    message.get('sender', 'Unknown'),
-                    message.get('id', 'N/A'),
-                    message.get('time', 'N/A')
-                )
-                print("\n" + bubble)
+                # (If other events are sent, handle them here.)
+                pass
         except Exception as e:
             print("Error receiving message:", e)
             break
 
 def main():
+    global my_user_id
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         client_socket.connect((IP, PORT))
@@ -77,17 +102,19 @@ def main():
     # Receive login confirmation.
     response = json.loads(client_socket.recv(HEADER_LENGTH).decode('utf-8'))
     if response.get("status") == "SUCCESS":
-        user_id = response.get("user_id")
-        print(f"Connected successfully. Your user ID is: {user_id}")
+        my_user_id = response.get("user_id")
+        print(f"Connected successfully. Your user ID is: {my_user_id}")
     else:
         print("Login failed.")
         return
 
-    # Start a background thread to receive messages.
+    # Start a background thread to listen for server events (including refresh).
     threading.Thread(target=receive_messages, args=(client_socket,), daemon=True).start()
 
-    # Main loop: read user input and send messages.
-    print("Type your messages. For a direct message, start with '@username'.")
+    # Main loop: read user input and send commands/messages.
+    print("Type your messages. For direct messages, start with '@username'.")
+    print("To delete a message, type '.delete <message_id>'.")
+    print("Type '.exit' to quit.")
     while True:
         user_input = input("You: ").strip()
         if not user_input:
@@ -97,7 +124,26 @@ def main():
             print("Disconnecting...")
             break
 
-        # Determine if this is a direct message.
+        # Check for delete command.
+        if user_input.startswith(".delete"):
+            try:
+                parts = user_input.split()
+                if len(parts) < 2:
+                    print("Usage: .delete <message_id>")
+                    continue
+                message_id_to_delete = parts[1]
+                data = {
+                    "action": "DELETE",
+                    "id": message_id_to_delete,
+                    "sender": my_user_id
+                }
+                client_socket.send(json.dumps(data).encode('utf-8'))
+                print(f"Delete request sent for message ID {message_id_to_delete}")
+            except Exception as e:
+                print("Error processing delete command:", e)
+            continue
+
+        # Otherwise, treat as a normal message.
         if user_input.startswith('@'):
             try:
                 recipient, msg_text = user_input.split(' ', 1)

@@ -6,7 +6,6 @@ import os
 import random
 from datetime import datetime
 
-
 # Configuration
 IP = '127.0.0.1'
 PORT = 65432
@@ -21,13 +20,13 @@ if not os.path.exists('messages.json'):
     with open('messages.json', 'w') as f:
         json.dump([], f)
 
-# Load stored data.
 with open('users.json', 'r') as f:
     USERS = json.load(f)
 with open('messages.json', 'r') as f:
     MESSAGES = json.load(f)
 
-CLIENTS = {}  # Maps user_id to a dictionary with keys 'socket' and 'username'
+# A dictionary mapping user_id to a dict: {'socket': client_socket, 'username': username}
+CLIENTS = {}
 lock = threading.Lock()
 
 def save_users():
@@ -49,16 +48,29 @@ def generate_message_id():
 
 def broadcast_message(message, target_user=None):
     """
-    If target_user is None, broadcast to all.
-    Otherwise, send only to the client whose username matches target_user.
+    Sends the given JSON message to all connected clients.
+    If target_user is provided, it will check if client's username matches target_user 
+    or if the client is the sender, and send only to those.
+    (Used in our initial implementation for direct messaging.)
     """
     with lock:
         for uid, client in CLIENTS.items():
-            if target_user is None or client['username'] == target_user or uid == message.get("sender"):
-                try:
-                    client['socket'].send(json.dumps(message).encode('utf-8'))
-                except Exception as e:
-                    print(f"Error sending message to {client['username']}: {e}")
+            # In our refresh approach we want all clients to update.
+            try:
+                client['socket'].send(json.dumps(message).encode('utf-8'))
+            except Exception as e:
+                print(f"Error sending message to {client['username']}: {e}")
+
+def broadcast_refresh():
+    """
+    Broadcasts a refresh event to all clients.
+    The refresh event includes the full messages list.
+    """
+    refresh_event = {
+        "action": "REFRESH",
+        "messages": MESSAGES
+    }
+    broadcast_message(refresh_event)
 
 def handle_client(client_socket, client_address):
     try:
@@ -76,8 +88,10 @@ def handle_client(client_socket, client_address):
                 save_users()
                 print(f"New user created: {username} with ID {user_id}")
             CLIENTS[user_id] = {"socket": client_socket, "username": username}
-
+        # Send login confirmation.
         client_socket.send(json.dumps({"status": "SUCCESS", "user_id": user_id}).encode('utf-8'))
+        # Immediately send a refresh event with all past messages.
+        client_socket.send(json.dumps({"action": "REFRESH", "messages": MESSAGES}).encode('utf-8'))
 
         while True:
             data = json.loads(client_socket.recv(HEADER_LENGTH).decode('utf-8'))
@@ -86,7 +100,6 @@ def handle_client(client_socket, client_address):
                 message_id = generate_message_id()
                 receiver = data.get('receiver')
                 msg_content = data.get('content')
-                # Generate a timestamp.
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 message = {
                     "id": message_id,
@@ -98,16 +111,35 @@ def handle_client(client_socket, client_address):
                 with lock:
                     MESSAGES.append(message)
                     save_messages()
-                # Then broadcast or send directly as before.
-                if receiver.lower() == "all":
-                    broadcast_message(message)
-                else:
-                    broadcast_message(message, target_user=receiver)
+                # For both broadcast and direct messages, we refresh every client.
+                broadcast_refresh()
+            elif action == "DELETE":
+                message_id = data.get("id")
+                sender_from_client = data.get("sender")
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                with lock:
+                    message_to_delete = None
+                    for msg in MESSAGES:
+                        if msg.get("id") == message_id:
+                            message_to_delete = msg
+                            break
+                    if not message_to_delete:
+                        client_socket.send(json.dumps({"error": f"Message ID {message_id} not found."}).encode('utf-8'))
+                        continue
+                    if message_to_delete.get("sender") != sender_from_client:
+                        client_socket.send(json.dumps({"error": "You are not authorized to delete this message."}).encode('utf-8'))
+                        continue
+                    MESSAGES.remove(message_to_delete)
+                    save_messages()
+                # Broadcast a refresh event after deletion.
+                broadcast_refresh()
             elif action == "EXIT":
                 print(f"{username} requested disconnect.")
                 with lock:
                     if user_id in CLIENTS:
                         del CLIENTS[user_id]
+                # Optionally, broadcast a refresh here, though messages list remains unchanged.
+                broadcast_refresh()
                 break
     except Exception as e:
         print(f"Error with client {client_address}: {e}")
