@@ -4,6 +4,7 @@ import threading
 import json
 import os
 import random
+import ssl
 from datetime import datetime
 
 # Configuration
@@ -147,14 +148,21 @@ def handle_client(client_socket, client_address):
         client_socket.close()
 
 def main():
+
+    #TLS/SSL
+    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    context.load_cert_chain(certfile='cert.pem', keyfile='key.pem')
+
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.bind((IP, PORT))
     server_socket.listen(BACK_LOG)
     print(f"Server listening on {IP}:{PORT}")
-    while True:
-        client_socket, client_address = server_socket.accept()
-        threading.Thread(target=handle_client, args=(client_socket, client_address), daemon=True).start()
+
+    with context.wrap_socket(server_socket, server_side=True) as tls_server:
+        while True:
+            client_socket, client_address = tls_server.accept()
+            threading.Thread(target=handle_client, args=(client_socket, client_address), daemon=True).start()
 
 if __name__ == "__main__":
     main()

@@ -3,6 +3,7 @@ import socket
 import json
 import threading
 import textwrap
+import ssl
 import os  # For clearing the terminal
 
 # Configuration
@@ -85,22 +86,33 @@ def receive_messages(client_socket):
 
 def main():
     global my_user_id
+
+    #Raw socket
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    #Create TLS context
+    context = ssl.create_default_context()
+
+    # For development only: disable server cert validation (not secure!)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
     try:
-        client_socket.connect((IP, PORT))
+        tls_socket = context.wrap_socket(client_socket, server_hostname=IP)
+
+        tls_socket.connect((IP, PORT))
     except Exception as e:
         print("Unable to connect to the server:", e)
         return
 
     # Login handshake.
-    response = json.loads(client_socket.recv(HEADER_LENGTH).decode('utf-8'))
+    response = json.loads(tls_socket.recv(HEADER_LENGTH).decode('utf-8'))
     if response.get("action") == "LOGIN":
         username = input("Enter your username: ").strip()
         user_id = input("Enter your user ID (leave blank if new): ").strip()
         login_data = {"username": username, "user_id": user_id}
-        client_socket.send(json.dumps(login_data).encode('utf-8'))
+        tls_socket.send(json.dumps(login_data).encode('utf-8'))
     # Receive login confirmation.
-    response = json.loads(client_socket.recv(HEADER_LENGTH).decode('utf-8'))
+    response = json.loads(tls_socket.recv(HEADER_LENGTH).decode('utf-8'))
     if response.get("status") == "SUCCESS":
         my_user_id = response.get("user_id")
         print(f"Connected successfully. Your user ID is: {my_user_id}")
@@ -109,7 +121,7 @@ def main():
         return
 
     # Start a background thread to listen for server events (including refresh).
-    threading.Thread(target=receive_messages, args=(client_socket,), daemon=True).start()
+    threading.Thread(target=receive_messages, args=(tls_socket,), daemon=True).start()
 
     # Main loop: read user input and send commands/messages.
     print("Type your messages. For direct messages, start with '@username'.")
@@ -120,7 +132,7 @@ def main():
         if not user_input:
             continue
         if user_input.lower() == ".exit":
-            client_socket.send(json.dumps({"action": "EXIT"}).encode('utf-8'))
+            tls_socket.send(json.dumps({"action": "EXIT"}).encode('utf-8'))
             print("Disconnecting...")
             break
 
@@ -137,7 +149,7 @@ def main():
                     "id": message_id_to_delete,
                     "sender": my_user_id
                 }
-                client_socket.send(json.dumps(data).encode('utf-8'))
+                tls_socket.send(json.dumps(data).encode('utf-8'))
                 print(f"Delete request sent for message ID {message_id_to_delete}")
             except Exception as e:
                 print("Error processing delete command:", e)
@@ -160,7 +172,7 @@ def main():
             "receiver": recipient,
             "content": msg_text
         }
-        client_socket.send(json.dumps(data).encode('utf-8'))
+        tls_socket.send(json.dumps(data).encode('utf-8'))
 
 if __name__ == "__main__":
     main()
