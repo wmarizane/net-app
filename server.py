@@ -12,6 +12,7 @@ IP = '127.0.0.1'
 PORT = 65432
 HEADER_LENGTH = 2048
 BACK_LOG = 100
+USED_MSSG_ID = set()
 
 # Ensure persistence files exist.
 if not os.path.exists('users.json'):
@@ -45,7 +46,7 @@ def generate_user_id(username):
             return user_id
 
 def generate_message_id():
-    return f"msg_{random.randint(100000, 999999)}"
+    return f"{random.randint(100000, 999999)}"
 
 def broadcast_message(message, target_user=None):
     """
@@ -98,7 +99,15 @@ def handle_client(client_socket, client_address):
             data = json.loads(client_socket.recv(HEADER_LENGTH).decode('utf-8'))
             action = data.get('action')
             if action == 'MESSAGE':
-                message_id = generate_message_id()
+                # Check unique message_id
+                # Gnerate ID until the message ID is unique
+                while(True):
+                    message_id = generate_message_id()
+                    if message_id not in USED_MSSG_ID:
+                        USED_MSSG_ID.add(message_id)
+                        break
+
+
                 receiver = data.get('receiver')
                 msg_content = data.get('content')
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
