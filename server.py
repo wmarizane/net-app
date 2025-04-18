@@ -5,6 +5,7 @@ import json
 import os
 import random
 import ssl
+import time
 from datetime import datetime
 
 # Configuration
@@ -12,6 +13,8 @@ IP = '127.0.0.1'
 PORT = 65432
 HEADER_LENGTH = 2048
 BACK_LOG = 100
+TIME_TO_LIVE = 10
+INTERVAL = 5
 USED_MSSG_ID = set()
 # A dictionary mapping user_id to a dict: {'socket': client_socket, 'username': username}
 CLIENTS = {}
@@ -85,14 +88,60 @@ def update_active_client_list():
             "receiver": None,
             "content": None,
             "time": None,
-            "private": False
-        }
+            "private": False,
+    }
         
     for client_id in list(CLIENTS.keys()):
         sending_list = [id for id in list(CLIENTS.keys()) if id != client_id]
         data['receiver'] = sending_list #Assign active client list for receiver to make it easier
         broadcast_message(CLIENTS[client_id],data)
 
+
+def clean_expired_message(ttl = TIME_TO_LIVE):
+    now = time.time()
+    global MESSAGES
+    with lock:
+        for client_msg in MESSAGES:
+
+            for msg in MESSAGES[client_msg]['send']:
+                mssg_timestamp = datetime.strptime(msg['time'],"%Y-%m-%d %H:%M:%S").timestamp()
+
+                if msg['action'] == 'TEMPORARY' and (now - mssg_timestamp) > ttl:
+                    msg_id = msg['id']
+                    receiver_list = msg['receiver'][:]
+                    sending_list = receiver_list + [msg['sender']]
+
+                    data = {
+                        "id": None,
+                        "action": 'OUTDATED',
+                        "sender": None,
+                        "receiver": None,
+                        "content": msg['id'],
+                        "time": None,
+                        "private": False,
+                    }
+
+                    for msg_receiver in receiver_list:
+                        if msg_receiver in MESSAGES:
+                            for m in MESSAGES[msg_receiver]['receive']:
+                                if m['id'] == msg_id:
+                                    msg['content'] = 'THIS MESSAGE IS EXPIRED.'
+                                    msg['action'] = 'DELETE'
+                                    
+
+                    for client_id in sending_list:
+                        if client_id in CLIENTS:
+                            broadcast_message(CLIENTS[client_id],data)
+
+                    
+
+
+
+def cleanup_loop(interval=INTERVAL, ttl=TIME_TO_LIVE):
+    while True:
+        clean_expired_message(ttl=ttl)
+        time.sleep(interval)  # Wait before running again
+                        
 
 def handle_client(client_socket, client_address):
     try:
@@ -131,7 +180,8 @@ def handle_client(client_socket, client_address):
         while True:
             data = json.loads(client_socket.recv(HEADER_LENGTH).decode('utf-8'))
             action = data.get('action')
-            print(data)
+            #TEST DATA
+            #print(data)
             if not data:    
                 print("Client {client_address} disconnected")
                 remove_connection(user_id)
@@ -139,7 +189,7 @@ def handle_client(client_socket, client_address):
                 break
 
             #HANDLE RECEIVING MESSAGE
-            if action == 'MESSAGE':
+            if action == 'MESSAGE' or action == 'TEMPORARY':
                 
                 # Check unique message_id
                 # Generate ID until the message ID is unique
@@ -174,14 +224,12 @@ def handle_client(client_socket, client_address):
                     broadcast_message(CLIENTS[client_id],message=data)
 
             elif action == "DELETE":
-                print(type(data))
                 message_id = data['content']
                 sender_id = data['sender']
                 
                 with lock:
                     message_to_delete = False
                     for msg in MESSAGES[sender_id]['send']:
-                        print(msg)
                         if message_id == msg['id']:
                             msg['content'] = 'THIS MESSAGE IS REMOVED'
                             print('YES')
@@ -219,6 +267,7 @@ def main():
     print(f"Server listening on {IP}:{PORT}")
 
     with context.wrap_socket(server_socket, server_side=True) as tls_server:
+        threading.Thread(target=cleanup_loop, daemon=True).start()
         while True:
             client_socket, client_address = tls_server.accept()
             threading.Thread(target=handle_client, args=(client_socket, client_address), daemon=True).start()

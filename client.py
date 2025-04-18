@@ -95,9 +95,8 @@ def receive_messages(client_socket):
                 break
 
             data = json.loads(raw_msg)
-            print(data)
             # If a refresh event is received, re-render the entire chat history.
-            if data["action"] == "MESSAGE":
+            if data["action"] == "MESSAGE" or data['action'] == 'TEMPORARY':
                 with lock:
                     MESSAGES.append(data)
                     MESSAGES = sorted(MESSAGES, key=lambda x: x["time"])
@@ -112,6 +111,13 @@ def receive_messages(client_socket):
             elif data["action"] == 'ACTIVE_CLIENT':
                 with lock:
                     ACTIVE_CLIENTS = data['receiver'][:]
+                    render_messages()
+            elif data["action"] == 'OUTDATED':
+                with lock:
+                    for msg in MESSAGES:
+                        if msg['id'] == data['content']:
+                            msg['content'] = 'THIS MESSAGE IS EXPIRED'
+                            break
                     render_messages()
             elif "error" in data:
                 print("Error:", data["error"])
@@ -137,6 +143,26 @@ def extract_message_and_users(mssg):
     message = " ".join(parts[message_start_index:]) if message_start_index != -1 else ""
     
     return users, message
+
+def extract_temp_message(input_str):
+    parts = input_str.strip().split()
+
+    if not parts or parts[0] != ".temp":
+        return None  # or raise an error
+
+    users = []
+    message_start_index = None
+
+    for i in range(1, len(parts)):
+        if parts[i].startswith('@'):
+            users.append(parts[i][1:])
+        else:
+            message_start_index = i
+            break
+
+    message = ' '.join(parts[message_start_index:]) if message_start_index is not None else ''
+
+    return  users, message
 
 def main():
     global my_user_id
@@ -214,7 +240,23 @@ def main():
                 print(f"Delete request sent for message ID {message_id_to_delete}")
             except Exception as e:
                 print("Error processing delete command:", e)
+        elif user_input.startswith(".temp"):
+            try:
+                recipient, msg_text = extract_temp_message(user_input)
 
+                if len(recipient) == 0: #no recipient: PUBLIC
+                    recipient = ["all"]
+                else: # PRIVATE messsage
+                    data['private'] = True
+
+                data["action"] = 'TEMPORARY'
+                data["sender"] = my_user_id
+                data["receiver"] = recipient
+                data["content"] = msg_text
+
+            except ValueError:
+                print("Invalid format. Use '@username message' for direct messages.")
+                continue
         # Otherwise, treat as a normal message.
         elif user_input.startswith('@'):
             try:
@@ -238,6 +280,7 @@ def main():
             data["sender"] = my_user_id
             data["receiver"] = recipient
             data["content"] = msg_text
+
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         data["time"] = timestamp
