@@ -193,6 +193,7 @@ def handle_client(client_socket, client_address):
                 
                 # Check unique message_id
                 # Generate ID until the message ID is unique
+                message_id = None
                 with lock:
                     while(True):
                         message_id = generate_message_id()
@@ -204,7 +205,7 @@ def handle_client(client_socket, client_address):
                 
                 
                 data['id'] = message_id
-                
+                sending_list = []
                 if "all" in receiver:
                     sending_list =list(CLIENTS.keys())
                     data['receiver'] = [uid for uid in sending_list if uid != user_id]
@@ -222,6 +223,44 @@ def handle_client(client_socket, client_address):
                 
                 for client_id in sending_list:
                     broadcast_message(CLIENTS[client_id],message=data)
+            elif action == "REPLY":
+                
+                message_id = None
+
+                with lock:
+                    while(True):
+                        message_id = generate_message_id()
+                        if message_id not in USED_MSSG_ID:
+                            USED_MSSG_ID.add(message_id)
+                            break
+                
+                # data = {
+                #         "id": None,
+                #         "action": 'REPLY',
+                #         "sender": sender_id,
+                #         "receiver": receivers,
+                #         "content": msg_content,
+                #         "time": None,
+                #         "private": False,
+                #         "optional": msg_id_replied
+                # }
+
+                data['id'] = message_id
+                
+                sending_list = data["receiver"]
+
+                with lock:
+                    for client_id in sending_list:
+                        if client_id == user_id:
+                            MESSAGES[user_id]['send'].append(data)
+                        else:
+                            MESSAGES[client_id]['receive'].append(data)
+
+                for client_id in sending_list:
+                    
+                    broadcast_message(CLIENTS[client_id],message=data)
+                    
+
 
             elif action == "DELETE":
                 message_id = data['content']
@@ -232,7 +271,6 @@ def handle_client(client_socket, client_address):
                     for msg in MESSAGES[sender_id]['send']:
                         if message_id == msg['id']:
                             msg['content'] = 'THIS MESSAGE IS REMOVED'
-                            print('YES')
                             sending_list = msg['receiver'][:] + [sender_id]
                             for client_id in sending_list:
                                 broadcast_message(CLIENTS[client_id],message=data)

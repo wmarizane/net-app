@@ -20,13 +20,14 @@ ACTIVE_CLIENTS = []
 my_user_id = None
 lock = threading.Lock()
 
-def speech_bubble(message, sender, msg_id, timestamp, private):
+def speech_bubble(message, sender, msg_id, timestamp, private, optional):
     """
     Creates a speech bubble string that contains:
       - The message text,
       - The sender's name,
       - And at the bottom, the message ID and timestamp (in light gray).
     """
+
     if sender == my_user_id:
         sender = 'You'
     # Wrap the message text.
@@ -35,6 +36,27 @@ def speech_bubble(message, sender, msg_id, timestamp, private):
         lines = [""]
     max_length = max(len(line) for line in lines)
     
+
+    reply_box = ""
+    if optional is not None:
+        reply_lines = textwrap.wrap(optional, width=BUBBLE_WIDTH)
+    
+        if not reply_lines:
+            reply_lines = [""]
+        reply_max_length = max(len(line) for line in reply_lines)
+
+        # Top reply border.
+        reply_top = " " + "_" * (reply_max_length + 2)
+        
+        # Middle block: the message lines.
+        reply_middle = "/ " + reply_lines[0].ljust(reply_max_length) + " \\"
+        if len(reply_lines) > 1:
+            reply_middle += "\n" + "\n".join([f"| {line.ljust(reply_max_length)} |" for line in reply_lines[1:]])
+        reply_bottom = f"\\_{'_' * reply_max_length}_/\n |/\n"
+
+        reply_box = f"{reply_top}\n{reply_middle}\n{reply_bottom}"
+
+    main_box = ""
     # Top border.
     top = " " + "_" * (max_length + 2)
     
@@ -47,8 +69,11 @@ def speech_bubble(message, sender, msg_id, timestamp, private):
     bottom = f"\\_{'_' * max_length}_/\n |/\n {sender}"
     bottom += " (Private)" if private else " (Public)"
     bottom += f"\n\033[90mID: {msg_id} | {timestamp}\033[0m"
+
+    main_box = f"{top}\n{middle}\n{bottom}"
     
-    return f"{top}\n{middle}\n{bottom}"
+    #return f"{top}\n{middle}\n{bottom}"
+    return reply_box+main_box
 
 def clear_screen():
     # Clear the terminal screen.
@@ -61,13 +86,28 @@ def render_messages():
     global my_user_id
     clear_screen()
     print("=== Chat History ===\n")
+    
     for msg in MESSAGES:
+        optional = None
+        
+        if msg['action'] == 'REPLY':
+            reply_sender = msg['sender']
+            reply_message = None
+            reply_id = msg['optional']
+            for m in MESSAGES:
+                if m['id'] == reply_id:
+                    reply_message = m['content'] 
+                    break
+            optional = f"[REPLY]\"{reply_sender}({reply_id}): {reply_message}\""
+
+
         bubble = speech_bubble(
             msg.get('content', ''),
             msg.get('sender', 'Unknown'),
             msg.get('id', 'N/A'),
             msg.get('time', 'N/A'),
-            msg.get('private','False')
+            msg.get('private',False),
+            optional,
         )
         print(bubble + "\n")
     print("=== End of Chat History ===\n")
@@ -96,7 +136,7 @@ def receive_messages(client_socket):
 
             data = json.loads(raw_msg)
             # If a refresh event is received, re-render the entire chat history.
-            if data["action"] == "MESSAGE" or data['action'] == 'TEMPORARY':
+            if data["action"] == "MESSAGE" or data['action'] == 'TEMPORARY' or data['action'] == 'REPLY':
                 with lock:
                     MESSAGES.append(data)
                     MESSAGES = sorted(MESSAGES, key=lambda x: x["time"])
@@ -118,7 +158,7 @@ def receive_messages(client_socket):
                         if msg['id'] == data['content']:
                             msg['content'] = 'THIS MESSAGE IS EXPIRED'
                             break
-                    render_messages()
+                    render_messages()    
             elif "error" in data:
                 print("Error:", data["error"])
             else:
@@ -164,8 +204,23 @@ def extract_temp_message(input_str):
 
     return  users, message
 
+def extract_reply_message(input_str):
+    parts = input_str.strip().split()
+
+    if not parts or parts[0] != ".reply":
+        return None  # or raise an error
+
+    if len(parts) < 3:
+        return None  # Not enough parts for msg_id and msg_context
+
+    msg_id = parts[1]
+    msg_context = ' '.join(parts[2:])
+
+    return msg_id, msg_context
+
+
 def main():
-    global my_user_id
+    global my_user_id, MESSAGES
 
     #Raw socket
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -214,6 +269,7 @@ def main():
             "content": None,
             "time": None,
             "private": False,
+            "optional": None
         }
 
         user_input = input(f"You ({my_user_id}): ").strip()
@@ -240,6 +296,32 @@ def main():
                 print(f"Delete request sent for message ID {message_id_to_delete}")
             except Exception as e:
                 print("Error processing delete command:", e)
+        elif user_input.startswith(".reply"):
+            # .reply <msg_id> <message>
+            try:
+                msg_id_replied, msg_text = extract_reply_message(user_input)
+                
+                receivers = []
+                private_satus = False
+                for msg in MESSAGES:
+                    if msg['id'] == msg_id_replied:
+                        if msg['sender'] == my_user_id: #Reply yourself
+                            receivers = msg["receiver"][:] + [my_user_id]
+                        else: #Reply other's message
+                            receivers = msg["receiver"][:] + [msg["sender"]]
+                        
+                        private_satus = msg["private"]
+
+                data["action"] = 'REPLY'
+                data["sender"] = my_user_id
+                data["receiver"] = receivers
+                data["content"] = msg_text
+                data["optional"] = msg_id_replied
+                data["private"] = private_satus
+
+            except ValueError:
+                print("Invalid format. Use '@username message' for direct messages.")
+                continue
         elif user_input.startswith(".temp"):
             try:
                 recipient, msg_text = extract_temp_message(user_input)
