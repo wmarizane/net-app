@@ -230,7 +230,12 @@ def main():
 
     # For development only: disable server cert validation (not secure!)
     context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
+    # context.verify_mode = ssl.CERT_NONE
+
+    context.verify_mode = ssl.CERT_REQUIRED
+    context.load_verify_locations('cert.pem')
+
+
     try:
         tls_socket = context.wrap_socket(client_socket, server_hostname=IP)
 
