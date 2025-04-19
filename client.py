@@ -320,8 +320,9 @@ def main():
     response = json.loads(tls_socket.recv(HEADER_LENGTH).decode('utf-8'))
     if response.get("action") == "LOGIN":
         username = input("Enter your username: ").strip()
-        user_id = input("Enter your user ID (leave blank if new): ").strip()
-        login_data = {"username": username, "user_id": user_id}
+        #user_id = input("Enter your user ID (leave blank if new): ").strip()
+        #login_data = {"username": username, "user_id": user_id}
+        login_data = {"username": username}
         tls_socket.send(json.dumps(login_data).encode('utf-8'))
         
     # Receive login confirmation.

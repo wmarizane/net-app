@@ -19,41 +19,41 @@ USED_MSSG_ID = set()
 # A dictionary mapping user_id to a dict: {'socket': client_socket, 'username': username}
 CLIENTS = {}
 MESSAGES = {}
-
+USERS = {}
 lock = threading.Lock()
 
-# Ensure persistence files exist.
-if not os.path.exists('users.json'):
-    with open('users.json', 'w') as f:
-        json.dump({}, f)
+# # Ensure persistence files exist.
+# if not os.path.exists('users.json'):
+#     with open('users.json', 'w') as f:
+#         json.dump({}, f)
 
-# Create directories for storing user message
-if not os.path.exists('message_db'):
-    os.makedirs('message_db')
+# # Create directories for storing user message
+# if not os.path.exists('message_db'):
+#     os.makedirs('message_db')
 
-    # with open('messages.json', 'w') as f:
-    #     json.dump([], f)
+#     # with open('messages.json', 'w') as f:
+#     #     json.dump([], f)
 
-with open('users.json', 'r') as f:
-    USERS = json.load(f)
-# with open('messages.json', 'r') as f:
-#     MESSAGES = json.load(f)
+# with open('users.json', 'r') as f:
+#     USERS = json.load(f)
+# # with open('messages.json', 'r') as f:
+# #     MESSAGES = json.load(f)
 
 def create_client_message_folder(user_id):
     data = {
         'send': [],
         'receive': []
     }
-    with open(f'./message_db/{user_id}.json', 'w') as f:
-        json.dump(data, f, indent=4)
+    # with open(f'./message_db/{user_id}.json', 'w') as f:
+    #     json.dump(data, f, indent=4)
 
-def save_users():
-    with open('users.json', 'w') as f:
-        json.dump(USERS, f, indent=4)
+# def save_users():
+#     with open('users.json', 'w') as f:
+#         json.dump(USERS, f, indent=4)
 
-def save_messages():
-    with open('messages.json', 'w') as f:
-        json.dump(MESSAGES, f, indent=4)
+# def save_messages():
+#     with open('messages.json', 'w') as f:
+#         json.dump(MESSAGES, f, indent=4)
 
 def generate_user_id(username):
     return f"{username}_{random.randint(1000, 9999)}"
@@ -149,21 +149,21 @@ def handle_client(client_socket, client_address):
         client_socket.send(json.dumps({"action": "LOGIN"}).encode('utf-8'))
         data = json.loads(client_socket.recv(HEADER_LENGTH).decode('utf-8'))
         username = data.get("username")
-        user_id = data.get("user_id", "")
+        user_id = None
         with lock:
-            if user_id in USERS and USERS[user_id]['username'] == username:
-                print(f"{username} reconnected with ID {user_id}")
-            else:
-                # Check unique user_id
-                # Generrate client's ID until the client's ID is unique
-                while True:
-                    user_id = generate_user_id(username)
-                    if user_id not in CLIENTS:
-                        break
-            
-                USERS[user_id] = {"username": username}
-                save_users()
-                print(f"New user created: {username} with ID {user_id}")
+            # if user_id in USERS and USERS[user_id]['username'] == username:
+            #     print(f"{username} reconnected with ID {user_id}")
+            # else:
+            # Check unique user_id
+            # Generrate client's ID until the client's ID is unique
+            while True:
+                user_id = generate_user_id(username)
+                if user_id not in CLIENTS:
+                    break
+        
+            USERS[user_id] = {"username": username}
+            #save_users()
+            print(f"New user created: {username} with ID {user_id}")
             CLIENTS[user_id] = {"socket": client_socket, "username": username}
             MESSAGES[user_id] = {
                 'send' : [],
