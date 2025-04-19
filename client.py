@@ -6,6 +6,9 @@ import textwrap
 import ssl
 import os  # For clearing the terminal
 import random
+import re
+import subprocess
+import sys
 from datetime import datetime
 
 # Configuration
@@ -15,7 +18,8 @@ HEADER_LENGTH = 2048
 BUBBLE_WIDTH = 40  # Maximum characters per line in the bubble
 MESSAGES = []
 ACTIVE_CLIENTS = []
- 
+
+
 # Global variable to hold our user id after login.
 my_user_id = None
 lock = threading.Lock()
@@ -219,6 +223,74 @@ def extract_reply_message(input_str):
     return msg_id, msg_context
 
 
+# Function to search messages based on a keyword
+def search_messages(keyword):
+    pattern = re.compile(keyword, re.IGNORECASE)
+    matches = []
+
+    with lock:
+        for msg in MESSAGES:
+            content = msg.get("content", "")
+            if pattern.search(content):
+                bubble = speech_bubble(
+                    msg.get('content', ''),
+                    msg.get('sender', 'Unknown'),
+                    msg.get('id', 'N/A'),
+                    msg.get('time', 'N/A'),
+                    msg.get('private', False)
+                )
+                matches.append(bubble)
+
+    # Write results to search.txt
+    with open("search.txt", "w", encoding="utf-8") as f:
+        for bubble in matches:
+            f.write(bubble + "\n\n")
+
+    # Open search.txt in a new terminal window
+    try:
+        open_search_txt()
+    except Exception as e:
+        print("Something went wrong:", e)
+
+def open_search_txt():
+    """Open search.txt in a new terminal window and leave it open after printing."""
+    filepath = "search.txt"
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(f"Couldn’t find {filepath} in {os.getcwd()}")
+    
+    # Windows
+    if sys.platform.startswith("win"):
+        # `start` must be part of the shell string
+        cmd = f'start cmd /k "type {filepath}"'
+        subprocess.Popen(cmd, shell=True)
+    
+    # macOS
+    elif sys.platform == "darwin":
+        cwd = os.getcwd().replace('"', '\\"')
+        # Activate Terminal and in one shot open a new window/tab to run your commands
+        subprocess.run([
+            "osascript",
+            "-e", 'tell application "Terminal" to activate',
+            "-e", f'tell application "Terminal" to do script "cd \\"{cwd}\\"; less {filepath}; exec zsh"'
+        ])
+    
+    # Linux (generic)
+    else:
+        cwd = os.getcwd().replace('"', '\\"')
+        # Try x-terminal-emulator (Debian/Ubuntu), else fallback to gnome-terminal
+        terminal_cmd = [
+            "x-terminal-emulator", "-e",
+            f'bash -c "cd \\"{cwd}\\" && less {filepath}; exec $SHELL"'
+        ]
+        try:
+            subprocess.Popen(terminal_cmd)
+        except FileNotFoundError:
+            # fallback
+            subprocess.Popen([
+                "gnome-terminal", "--",
+                "bash", "-c", f'cd "{cwd}" && less {filepath}; exec $SHELL'
+            ])
+        
 def main():
     global my_user_id, MESSAGES
 
@@ -344,6 +416,16 @@ def main():
             except ValueError:
                 print("Invalid format. Use '@username message' for direct messages.")
                 continue
+        elif user_input.startswith(".search"):
+            try:
+                parts = user_input.split(maxsplit=1)
+                if len(parts) < 2:
+                    print("Usage: .search <keyword>")
+                    continue
+                keyword = parts[1]
+                search_messages(keyword)
+            except Exception as e:
+                print("Error processing search command:", e)
         # Otherwise, treat as a normal message.
         elif user_input.startswith('@'):
             try:
