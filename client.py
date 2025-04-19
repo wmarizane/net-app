@@ -24,7 +24,7 @@ ACTIVE_CLIENTS = []
 my_user_id = None
 lock = threading.Lock()
 
-def speech_bubble(message, sender, msg_id, timestamp, private, optional):
+def speech_bubble(message, sender, msg_id, timestamp, private, optional=None):
     """
     Creates a speech bubble string that contains:
       - The message text,
