@@ -205,7 +205,7 @@ The architecture ensures that:
 
 ### Message format
 
-```python
+```JSON
 data = {
     "id": 235467,
     "action": ’MESSAGE’,
@@ -218,16 +218,16 @@ data = {
 }
 ```
 
-- id: message ID
-- action: method of the message, including **{LOGIN, MESSAGE, DELETE, TEMPORARY, SEARCH, EXIT}**
-- sender: user ID of the sender
-- receiver: a list of all receivers' ID for the message
-- content: the message content
-- time: timestamp of the message.
-- private:
-    + True  - only specified receivers will receive the message
-    + False - all clients in the chat room receive the message
-- optional: place to put the message ID for **DELETE** and **REPLY** method.  
+- `id`: message ID
+- `action`: method of the message, including **{LOGIN, MESSAGE, DELETE, TEMPORARY, SEARCH, EXIT}**
+- `sender`: user ID of the sender
+- `receiver`: a list of all receivers' ID for the message
+- `content`: the message content
+- `time`: timestamp of the message.
+- `private`:
+    + `True`  - only specified receivers will receive the message
+    + `False` - all clients in the chat room receive the message
+- `optional`: place to put the message ID for **DELETE** and **REPLY** method.  
 
 Both sides use multithreading to handle multiple messages and connections asynchronously.
 
