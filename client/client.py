@@ -125,8 +125,8 @@ def render_messages():
 
     print(f"\nYou ({my_user_id})>")
 
-def generate_message_id():
-    return f"{random.randint(100000, 999999)}"
+# def generate_message_id():
+#     return f"{random.randint(100000, 999999)}"
 
 def receive_messages(client_socket):
     global MESSAGES

@@ -179,15 +179,30 @@ The architecture ensures that:
 
 ### Server side
 
-- `handle_client()`: Handles individual client sessions.
+- `handle_client()`: Handles individual client sessions with different types of messages, including **action= {LOGIN, MESSAGE, DELETE, TEMPORARY, EXIT}**.
 - `broadcast_message()`: Forwards messages to appropriate recipients.
 - `cleanup_loop()`: Periodically removes expired temporary messages.
+- `cliean_expired_message`: check whether temporary messages are expired and broadcast the message indicating which message is expired and need to be updated in the client message database. 
+- `generate_user_id`: Create a unique Id for user by appending user's name with 4-digit random number.
+- `generate_message_id`: Create a unique message ID with 6-digit random number.
+- `remove_conenction`: Remove client socket information according to given client ID.
+- `update_active_client_list`: generate and broadcast message with **action = ACTIVE_CLIENT** to announce all clients about the number of active clients in the chat room.
+
+
 
 ### Client side
 
 - `receive_messages()`: Listens and renders incoming messages.
 - `speech_bubble()`: Beautifies messages in terminal.
 - `search_messages()`: Finds messages containing a keyword using regex and displays them in a new terminal window.
+- `open_search_txt` : Open **search.txt** in a new terminal and leave it open after printing.
+- `clear_screen()`: call OS function to clear all the current ouput on the terminal.
+- `render_message()`: call clear_screen function and reprint all the messages.
+- `extract_message_and_users`: function to parse user's input to get all client ID and the message.
+- `extract_temp_message`: function to parse user's input with **temp** keyword to get all client ID and the message.
+- `extract_reply_message` : function to parse user's input with **reply** keyword to get message ID and the message.
+- `main`: handle user logging in and sending messages with different actions, inclduing **action = {LOGIN, MESSAGE, DELETE, TEMPORARY, SEARCH, EXIT}**
+
 
 Both sides use multithreading to handle multiple messages and connections asynchronously.
 
@@ -219,3 +234,7 @@ Project sources and references were cited from:
 - <a href="pythonprogramming.net/server-chatroom-sockets-tutorial-python-3/">Creating chat application with sockets in Python</a>
 - <a href="https://docs.python.org/2/library/ssl.html">Python SSL documentation</a>
 - <a href="google.com">GeeksforGeeks Socket Programming tutorials</a>
+- <a href="https://docs.openssl.org/3.0/man1/openssl-req/">OpenSSL req manual to generate key and certificate</a>
+- <a href="https://docs.python.org/2/library/ssl.html">TLS/SSL wrapper for socket objects</a>
+- <a href="https://www.geeksforgeeks.org/get-current-date-and-time-using-python/">How to get current date and time using Python </a>
+- <a href="https://www.geeksforgeeks.org/python-convert-json-to-string/"> Convert between JSON format and string </a>
