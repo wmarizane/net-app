@@ -1,0 +1,221 @@
+# CLIENT/SERVER RELIABLE CHAT APPLICATION
+
+Nguyen Anh Khoa Tran
+
+Wesley K. Marizane
+
+COMP 3825
+
+Instructor: Meiying Zhang
+
+<br>
+
+## Introduction
+
+This project aimed to design and implement a reliable Client/Server Chat Application using a simple but highly functional architecture. The goal was to enable two or more clients to connect to a central server and exchange messages in real-time, with a focus on reliability, security, clarity, and usability.
+
+Our chat application is built using Python 3, leveraging basic socket programming combined with TLS/SSL encryption to secure the communication between the server and clients. Each client, upon connection, is assigned a unique identifier and receives a list of available clients. Clients use these identifiers to send direct messages, which the server forwards appropriately. Our design is modular and extensible, allowing easy addition of new features.
+
+In this project, we have also implemented advanced functionalities such as multi-client chatting, encrypted communications, message deletion, temporary messages, and a search function using regex.
+
+<br>
+
+## Design
+
+### Architecture overview
+
+The application follows a standard Client-Server architecture:
+
+- Server: Manages all client connections, assigns unique IDs, forwards messages between clients, and maintains an updated list of active clients.
+
+- Clients: Connect to the server, retrieve active clients, send and receive messages, and perform actions like search, delete, and exit.
+
+Communication is handled through the server to maintain centralized control, security, and reliability.
+
+<br>
+
+### Modules and Components
+
+#### Server
+
+- Accepts and handles client connections.
+- Assigns unique IDs.
+- Forwards messages between clients.
+- Updates client lists.
+- Manages message expiration (temporary messages).
+
+#### Client
+
+- Connects securely to the server.
+- Sends and receives encrypted messages.
+- Displays messages in speech-bubble format.
+- Supports searching, deleting, and temporary messages.
+
+#### Unique Client Identification
+
+When a client connects, the server generates a unique ID using a combination of their username and a random number (e.g., “John_4572”). This ID is used for direct messaging and identification.
+
+<br>
+
+### Message Flow
+
+#### Client Connection
+
+- Client connects to the server via TLS/SSL.
+- Server assigns a unique ID and provides the current list of active clients.
+
+#### Sending a Message
+
+- The sender selects a recipient (or all) using their IDs.
+- The server receives the message and forwards it to the intended clients.
+
+#### Receiving a Message
+
+- Clients listen continuously for incoming messages and render them in a structured speech-bubble format.
+
+#### Client Disconnection
+
+- Clients can disconnect gracefully using the “.exit” command.
+- The server updates the active clients list and closes the socket.
+
+<br>
+
+## Features Implemented
+
+- Chatting between multiple clients (required)
+- TLS/SSL encryption (required)
+- Message deletion
+- Temporary messages
+- Message searching using regex
+
+Each feature was implemented carefully with synchronization, ensuring data consistency even with multiple active clients.
+
+<br>
+
+## Communication Between Clients
+
+Clients communicate through the server. All messages are encrypted via TLS/SSL during transit to prevent interception. Clients send structured JSON data, and the server broadcasts or directly forwards the message as needed.
+
+The architecture ensures that:
+- Direct messages are private.
+- Public messages are shared with all connected clients.
+- Temporary messages automatically expire and are deleted.
+
+<br>
+
+## Installation and Running Instructions
+
+### Requirements
+- Python 3.10+
+- `openssl` for generating certificates
+
+### Installation Steps
+
+1. Install Python 3 if not already installed.
+1. Generate TLS certificates (`cert.pem`, `key.pem`) or use provided ones.
+1. Place `client.py` and `server.py` in the same project directory.
+
+### Running the Program
+
+1. Start the server first:
+
+    ```sh
+    python3 server.py
+    ```
+
+1. Then start one or more clients in separate terminals:
+
+    ```sh
+    python3 client.py
+    ```
+
+1. Upon connection, clients will input their username and (optionally) user ID.
+
+1. Clients can:
+    - Send public messages
+    - Send direct messages (`@user_id <message>`)
+    - Delete messages: `.delete <message_id>`
+    - Send temporary messages: `.temp <message>`
+    - Search messages: `.search <keyword>`
+    - Reply to messages: `.reply <message_id> <message>`
+
+<br>
+
+## Screenshots
+
+- Server running:
+
+    ![Server running](img/server.png)
+
+- Connected clients:
+
+    ![Multiple clients connected](img/clients.png)
+
+- Direct and public messaging:
+
+    ![Direct and public messaging](img/messaging.png)
+
+- Replying to a message:
+
+    ![Replying to a message](img/reply.png)
+
+- Deleting a message
+
+    ![Deleting a message](img/delete.png)
+
+- Searching for a message
+
+    ![Searching for messages](img/search.png)
+
+- Temporary message auto-expiring
+
+    ![Expiring message](img/expire1.png)
+
+    ![Expiring message](img/expire2.png)
+
+<br>
+
+## Code Implementation and Function Details
+
+### Server side
+
+- `handle_client()`: Handles individual client sessions.
+- `broadcast_message()`: Forwards messages to appropriate recipients.
+- `cleanup_loop()`: Periodically removes expired temporary messages.
+
+### Client side
+
+- `receive_messages()`: Listens and renders incoming messages.
+- `speech_bubble()`: Beautifies messages in terminal.
+- `search_messages()`: Finds messages containing a keyword using regex and displays them in a new terminal window.
+
+Both sides use multithreading to handle multiple messages and connections asynchronously.
+
+<br>
+
+## Evaluation and Results
+
+Our chat application met all the basic and bonus requirements. It proved stable under multiple connections, reliably handled encrypted communication, and supported advanced features like search and temporary messages. The modular design allows for easy future extensions like media file support or message history logging.
+
+Testing showed:
+- Secure connection established (TLS handshake).
+- Real-time messaging with minimal delay.
+- Accurate deletion and expiration of temporary messages.
+- Reliable search results with keyword matching.
+
+<br>
+
+## Conclusion
+
+This project successfully demonstrated a robust and extensible client/server chat system. Through this work, we gained valuable hands-on experience in network programming, encryption, multithreading, and synchronization. The bonus features enhanced usability, and the modular design ensures the system can be expanded further if needed.
+
+We are confident that the application meets all project requirements and honors criteria, providing a secure, functional, and user-friendly communication platform.
+
+<br>
+
+## Appendix
+Project sources and references were cited from:
+
+- <a href="pythonprogramming.net/server-chatroom-sockets-tutorial-python-3/">Creating chat application with sockets in Python</a>
+- <a href="https://docs.python.org/2/library/ssl.html">Python SSL documentation</a>
+- <a href="google.com">GeeksforGeeks Socket Programming tutorials</a>
