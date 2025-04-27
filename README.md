@@ -203,6 +203,31 @@ The architecture ensures that:
 - `extract_reply_message` : function to parse user's input with **reply** keyword to get message ID and the message.
 - `main`: handle user logging in and sending messages with different actions, inclduing **action = {LOGIN, MESSAGE, DELETE, TEMPORARY, SEARCH, EXIT}**
 
+### Message format
+
+```python
+data = {
+    "id": 235467,
+    "action": ’MESSAGE’,
+    "sender": ‘Tom_8386’,
+    "receiver": [‘Alice_5678’,’Trudy_8901’],
+    "content": ‘Hello Alice and Trudy!’,
+    "time": 2025-04-20 10:54:03,
+    "private": True,
+    "optional": None
+}
+```
+
+- id: message ID
+- action: method of the message, including **{LOGIN, MESSAGE, DELETE, TEMPORARY, SEARCH, EXIT}**
+- sender: user ID of the sender
+- receiver: a list of all receivers' ID for the message
+- content: the message content
+- time: timestamp of the message.
+- private:
+    + True  - only specified receivers will receive the message
+    + False - all clients in the chat room receive the message
+- optional: place to put the message ID for **DELETE** and **REPLY** method.  
 
 Both sides use multithreading to handle multiple messages and connections asynchronously.
 
