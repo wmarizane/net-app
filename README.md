@@ -219,7 +219,7 @@ data = {
 ```
 
 - `id`: message ID
-- `action`: method of the message, including **{LOGIN, MESSAGE, DELETE, TEMPORARY, SEARCH, EXIT}**
+- `action`: method of the message, including **{LOGIN, MESSAGE, DELETE, TEMPORARY, EXIT}**
 - `sender`: user ID of the sender
 - `receiver`: a list of all receivers' ID for the message
 - `content`: the message content
