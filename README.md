@@ -205,7 +205,7 @@ The architecture ensures that:
 
 ### Message format
 
-```JSON
+```Python
 data = {
     "id": 235467,
     "action": ’MESSAGE’,
