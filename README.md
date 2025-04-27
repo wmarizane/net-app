@@ -26,7 +26,7 @@ In this project, we have also implemented advanced functionalities such as multi
 
 The application follows a standard Client-Server architecture:
 
-- Server: Manages all client connections, assigns unique IDs, forwards messages between clients, and maintains an updated list of active clients.
+- Server: Manages all client connections, assigns unique ID for clients and their messages, forwards messages between clients, and maintains an updated list of active clients.
 
 - Clients: Connect to the server, retrieve active clients, send and receive messages, and perform actions like search, delete, and exit.
 
